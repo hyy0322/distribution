@@ -10,6 +10,15 @@ import (
 	"github.com/docker/go-metrics"
 )
 
+var (
+	// eventsCounter counts total events of incoming, success, failure, and errors
+	eventsCounter = prometheus.NotificationsNamespace.NewLabeledCounter("events", "The number of total events", "type")
+	// pendingGauge measures the pending queue size
+	pendingGauge = prometheus.NotificationsNamespace.NewGauge("pending", "The gauge of pending events in queue", metrics.Total)
+	// statusCounter counts the total notification call per each status code
+	statusCounter = prometheus.NotificationsNamespace.NewLabeledCounter("status", "The number of status code", "code")
+)
+
 // endpoints is global registry of endpoints used to report metrics to expvar
 var endpoints struct {
 	registered []*Endpoint
@@ -115,6 +124,9 @@ func (emsl *endpointMetricsHTTPStatusListener) success(status int, events ...Eve
 	defer emsl.safeMetrics.Unlock()
 	emsl.Statuses[fmt.Sprintf("%d %s", status, http.StatusText(status))] += len(events)
 	emsl.Successes += len(events)
+
+	statusCounter.WithValues(fmt.Sprintf("%d %s", status, http.StatusText(status))).Inc(1)
+	eventsCounter.WithValues("Successes").Inc(1)
 }
 
 func (emsl *endpointMetricsHTTPStatusListener) failure(status int, events ...Event) {
@@ -122,12 +134,17 @@ func (emsl *endpointMetricsHTTPStatusListener) failure(status int, events ...Eve
 	defer emsl.safeMetrics.Unlock()
 	emsl.Statuses[fmt.Sprintf("%d %s", status, http.StatusText(status))] += len(events)
 	emsl.Failures += len(events)
+
+	statusCounter.WithValues(fmt.Sprintf("%d %s", status, http.StatusText(status))).Inc(1)
+	eventsCounter.WithValues("Failures").Inc(1)
 }
 
 func (emsl *endpointMetricsHTTPStatusListener) err(err error, events ...Event) {
 	emsl.safeMetrics.Lock()
 	defer emsl.safeMetrics.Unlock()
 	emsl.Errors += len(events)
+
+	eventsCounter.WithValues("Errors").Inc(1)
 }
 
 // endpointMetricsEventQueueListener maintains the incoming events counter and
@@ -141,12 +158,17 @@ func (eqc *endpointMetricsEventQueueListener) ingress(events ...Event) {
 	defer eqc.Unlock()
 	eqc.Events += len(events)
 	eqc.Pending += len(events)
+
+	eventsCounter.WithValues("Events").Inc()
+	pendingGauge.Inc(1)
 }
 
 func (eqc *endpointMetricsEventQueueListener) egress(events ...Event) {
 	eqc.Lock()
 	defer eqc.Unlock()
 	eqc.Pending -= len(events)
+
+	pendingGauge.Dec(1)
 }
 
 // register places the endpoint into expvar so that stats are tracked.
