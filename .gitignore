@@ -25,6 +25,7 @@ _testmain.go
 
 # never checkin from the bin file (for now)
 bin/*
+binary/*
 
 # Test key files
 *.pem
