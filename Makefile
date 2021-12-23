@@ -100,3 +100,41 @@ build:
 clean: ## clean up binaries
 	@echo "$(WHALE) $@"
 	@rm -f $(BINARIES)
+
+TIMESTAMP=$(shell date +"%Y%m%d")
+DOCKERCMD=$(shell which docker)
+BUILD_BASE=true
+PULL_BASE_FROM_DOCKERHUB=true
+DOCKERBUILD=$(DOCKERCMD) build --no-cache
+DOCKERBUILD_WITH_PULL_PARA=$(DOCKERBUILD) --pull=$(PULL_BASE_FROM_DOCKERHUB)
+DOCKERRMIMAGE=$(DOCKERCMD) rmi
+DOCKERIMAGES=$(DOCKERCMD) images
+BASEIMAGENAMESPACE=goharbor
+DOCKERFILEPATH=harbor-build
+DOCKERFILEPATH_REG=$(DOCKERFILEPATH)
+DOCKERFILENAME_REG=Dockerfile
+DOCKERIMAGENAME_REG=goharbor/$(REGISTRY)-photon
+REGISTRY=registry
+BASEIMAGETAG=dev
+VERSIONTAG=dev
+
+
+
+docker-build:
+	#@$(call _build_base,$(REGISTRY),$(DOCKERFILEPATH_REG))
+	$(DOCKERFILEPATH_REG)/builder
+	@echo "building registry container for photon..."
+	@chmod 655 ./binary/registry && $(DOCKERBUILD_WITH_PULL_PARA) --build-arg harbor_base_image_version=$(BASEIMAGETAG) --build-arg harbor_base_namespace=$(BASEIMAGENAMESPACE) -f $(DOCKERFILEPATH_REG)/$(DOCKERFILENAME_REG) -t $(DOCKERIMAGENAME_REG):$(VERSIONTAG) .
+	@echo "Done."
+
+define _build_base
+	if [ "$(BUILD_BASE)" = "true" ] ; then \
+		echo "building base image for $(1)...";\
+		if [ -n "$(REGISTRYUSER)"  ] && [ -n "$(REGISTRYPASSWORD)" ] ; then \
+			docker login -u $(REGISTRYUSER) -p $(REGISTRYPASSWORD) ; \
+		else \
+			echo "No docker credentials provided, please be aware of priviledges to access docker hub!" ; \
+		fi ;\
+		$(DOCKERBUILD) -f $(2)/Dockerfile.base -t $(BASEIMAGENAMESPACE)/harbor-$(1)-base:$(BASEIMAGETAG) --label base-build-date=$(TIMESTAMP) . ; \
+	fi
+endef
