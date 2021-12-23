@@ -121,7 +121,7 @@ VERSIONTAG=dev
 
 
 docker-build:
-	#@$(call _build_base,$(REGISTRY),$(DOCKERFILEPATH_REG))
+	@$(call _build_base,$(REGISTRY),$(DOCKERFILEPATH_REG))
 	$(DOCKERFILEPATH_REG)/builder
 	@echo "building registry container for photon..."
 	@chmod 655 ./binary/registry && $(DOCKERBUILD_WITH_PULL_PARA) --build-arg harbor_base_image_version=$(BASEIMAGETAG) --build-arg harbor_base_namespace=$(BASEIMAGENAMESPACE) -f $(DOCKERFILEPATH_REG)/$(DOCKERFILENAME_REG) -t $(DOCKERIMAGENAME_REG):$(VERSIONTAG) .
