@@ -423,7 +423,6 @@ func New(params DriverParameters) (*Driver, error) {
 	})
 
 	if params.RegionEndpoint != "" {
-		awsConfig.WithS3ForcePathStyle(true)
 		awsConfig.WithEndpoint(params.RegionEndpoint)
 	}
 
