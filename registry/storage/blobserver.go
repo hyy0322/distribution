@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/docker/distribution"
+	dcontext "github.com/docker/distribution/context"
 	"github.com/docker/distribution/registry/storage/driver"
+
 	"github.com/opencontainers/go-digest"
 )
 
@@ -35,10 +37,15 @@ func (bs *blobServer) ServeBlob(ctx context.Context, w http.ResponseWriter, r *h
 	}
 
 	if bs.redirect {
-		redirectURL, err := bs.driver.URLFor(ctx, path, map[string]interface{}{"method": r.Method})
+		redirectURL, err := bs.driver.URLFor(ctx, path, map[string]interface{}{
+			"method":  r.Method,
+			"domain":  r.Host,
+			"realIPs": r.Header.Get("X-Real-Ip"),
+		})
 		switch err.(type) {
 		case nil:
 			// Redirect to storage URL.
+			dcontext.GetLogger(ctx).Infof("redirectURL: %s", redirectURL)
 			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 			return err
 

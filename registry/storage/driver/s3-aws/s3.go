@@ -19,6 +19,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"net"
 	"net/http"
 	"reflect"
 	"sort"
@@ -907,7 +908,64 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 		panic("unreachable")
 	}
 
+	domain := options["domain"].(string)
+	realIPs := options["realIPs"].(string)
+	req.HTTPRequest.URL.Host = GetTosEndpoint(ctx, domain, realIPs, req.HTTPRequest.URL.Host)
+
 	return req.Presign(expiresIn)
+}
+
+// GetTosEndpoint ...
+// registry s3 endpoint 填 ivolces vpc 域名
+func GetTosEndpoint(ctx context.Context, domain, realIPs, redirectURL string) string {
+	dcontext.GetLogger(ctx).Infof("request domain: %s, X-Real-Ip: %s", domain, realIPs)
+	// 访问的是公共服务区域名
+	if strings.HasSuffix(domain, "cr.ivolces.com") {
+		if strings.Contains(redirectURL, "inner") {
+			dcontext.GetLogger(ctx).Info("request from internal zone")
+			return redirectURL
+		}
+		redirectURLPrefix := strings.TrimSuffix(redirectURL, ".ivolces.com")
+		dcontext.GetLogger(ctx).Info("request from internal zone")
+		return fmt.Sprintf("%s-inner.ivolces.com", redirectURLPrefix)
+	}
+	// 访问的是 公网 或 vpc 域名
+	// 访问的是 vpc 域名
+	realIPsSplit := strings.Split(realIPs, ",")
+	if len(realIPsSplit) == 0 {
+		dcontext.GetLogger(ctx).Info("request from vpc zone")
+		return redirectURL
+	}
+	fromVpc := checkIP(realIPsSplit[0])
+	dcontext.GetLogger(ctx).Infof("X-Real-Ip: %s, fromVpc: %v", realIPsSplit[0], fromVpc)
+	if fromVpc {
+		dcontext.GetLogger(ctx).Info("request from vpc zone")
+		return redirectURL
+	}
+	// 默认返回 tos 公网地址
+	redirectURLPrefix := strings.TrimSuffix(redirectURL, ".ivolces.com")
+	dcontext.GetLogger(ctx).Info("request from public zone")
+	return fmt.Sprintf("%s.volces.com", redirectURLPrefix)
+}
+
+func checkIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return true
+	}
+	cidrs := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"100.64.0.0/10",
+	}
+	for _, cidr := range cidrs {
+		_, ipNet, _ := net.ParseCIDR(cidr)
+		if ipNet.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // Walk traverses a filesystem defined within driver, starting
