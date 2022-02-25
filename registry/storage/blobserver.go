@@ -36,7 +36,8 @@ func (bs *blobServer) ServeBlob(ctx context.Context, w http.ResponseWriter, r *h
 		return err
 	}
 
-	if bs.redirect {
+	crRedirect := r.Header.Get("X-Volc-Cr-Redirect")
+	if bs.redirect && crRedirect != "false" {
 		redirectURL, err := bs.driver.URLFor(ctx, path, map[string]interface{}{
 			"method":  r.Method,
 			"domain":  r.Host,
