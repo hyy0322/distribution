@@ -8,7 +8,7 @@ cd `dirname $0`
 
 # the temp folder to store distribution source code...
 TEMP=`mktemp -d ${TMPDIR-/tmp}/distribution.XXXXXX`
-cp -R ../../distribution/ $TEMP
+cp -R ../../cr-distribution/ $TEMP
 
 echo 'build the registry binary ...'
 cp Dockerfile.binary $TEMP
