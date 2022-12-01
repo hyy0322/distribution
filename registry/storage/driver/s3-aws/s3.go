@@ -910,42 +910,57 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 
 	domain := options["domain"].(string)
 	realIPs := options["realIPs"].(string)
-	req.HTTPRequest.URL.Host = GetTosEndpoint(ctx, domain, realIPs, req.HTTPRequest.URL.Host)
-
+	clientEnv := options["clientEnv"].(string)
+	clientEnv = getClientEnv(domain, clientEnv, realIPs)
+	dcontext.GetLogger(ctx).Infof("request domain: %s, realIPs: %s, clientEnv: %s", domain, realIPs, clientEnv)
+	req.HTTPRequest.URL.Host = GetTosEndpoint(ctx, clientEnv, req.HTTPRequest.URL.Host)
 	return req.Presign(expiresIn)
+}
+
+const (
+	// clientEnvPublic 请求来自公网
+	clientEnvPublic string = "Public"
+	// clientEnvPrivate 请求来自售卖区
+	clientEnvPrivate string = "Private"
+	// clientEnvInner 请求来自公共服务区
+	clientEnvInner string = "Inner"
+)
+
+// getClientEnv 先检查 HTTP Header 中传递过来的 ClientEnv，如果不为空则返回该值
+// 然后再根据源 IP 进行判断
+func getClientEnv(requestDomain, clientEnvFromHeader, realIPs string) string {
+	realIPsSplit := strings.Split(realIPs, ",")
+	switch {
+	case len(clientEnvFromHeader) != 0:
+		return clientEnvFromHeader
+	case strings.HasSuffix(requestDomain, "cr.ivolces.com"):
+		return clientEnvInner
+	case len(realIPsSplit) == 0, checkIP(realIPsSplit[0]):
+		return clientEnvPrivate
+	default:
+		return clientEnvPublic
+	}
 }
 
 // GetTosEndpoint ...
 // registry s3 endpoint 填 ivolces vpc 域名
-func GetTosEndpoint(ctx context.Context, domain, realIPs, redirectURL string) string {
-	dcontext.GetLogger(ctx).Infof("request domain: %s, X-Real-Ip: %s", domain, realIPs)
-	// 访问的是公共服务区域名
-	if strings.HasSuffix(domain, "cr.ivolces.com") {
-		if strings.Contains(redirectURL, "inner") {
-			dcontext.GetLogger(ctx).Info("request from internal zone")
-			return redirectURL
-		}
-		redirectURLPrefix := strings.TrimSuffix(redirectURL, ".ivolces.com")
+func GetTosEndpoint(ctx context.Context, clientEnv, redirectURL string) string {
+	// 基础版 registry 配置的域名类似：tos-s3-cn-boe-inner.ivolces.com
+	// 企业版 registry 配置的域名类似：tos-s3-cn-boe.ivolces.com
+	// 经过两次 trim 可以得到一个纯粹的前缀类似 tos-s3-cn-boe
+	redirectURLPrefix := strings.TrimSuffix(redirectURL, ".ivolces.com")
+	redirectURLPrefix = strings.TrimSuffix(redirectURLPrefix, "-inner")
+	switch clientEnv {
+	case clientEnvInner:
 		dcontext.GetLogger(ctx).Info("request from internal zone")
 		return fmt.Sprintf("%s-inner.ivolces.com", redirectURLPrefix)
-	}
-	// 访问的是 公网 或 vpc 域名
-	// 访问的是 vpc 域名
-	realIPsSplit := strings.Split(realIPs, ",")
-	if len(realIPsSplit) == 0 {
+	case clientEnvPrivate:
 		dcontext.GetLogger(ctx).Info("request from vpc zone")
-		return redirectURL
+		return fmt.Sprintf("%s.ivolces.com", redirectURLPrefix)
+	default: // 默认返回 tos 公网地址
+		dcontext.GetLogger(ctx).Info("request from public zone")
+		return fmt.Sprintf("%s.volces.com", redirectURLPrefix)
 	}
-	fromVpc := checkIP(realIPsSplit[0])
-	dcontext.GetLogger(ctx).Infof("X-Real-Ip: %s, fromVpc: %v", realIPsSplit[0], fromVpc)
-	if fromVpc {
-		dcontext.GetLogger(ctx).Info("request from vpc zone")
-		return redirectURL
-	}
-	// 默认返回 tos 公网地址
-	redirectURLPrefix := strings.TrimSuffix(redirectURL, ".ivolces.com")
-	dcontext.GetLogger(ctx).Info("request from public zone")
-	return fmt.Sprintf("%s.volces.com", redirectURLPrefix)
 }
 
 func checkIP(ipStr string) bool {
