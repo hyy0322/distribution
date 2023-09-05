@@ -59,7 +59,8 @@ func (pbs *proxyBlobStore) copyContent(ctx context.Context, dgst digest.Digest, 
 		return distribution.Descriptor{}, err
 	}
 
-	proxyMetrics.BlobPush(uint64(desc.Size))
+	proxyMetrics.BlobPull(uint64(desc.Size))
+	proxyMetrics.BlobPush(uint64(desc.Size), false)
 
 	return desc, nil
 }
@@ -72,6 +73,7 @@ func (pbs *proxyBlobStore) serveLocal(ctx context.Context, w http.ResponseWriter
 		return false, nil
 	}
 
+<<<<<<< HEAD
 	if err == nil {
 		proxyMetrics.BlobPush(uint64(localDesc.Size))
 		return true, pbs.localStore.ServeBlob(ctx, w, r, dgst)
@@ -108,6 +110,10 @@ func (pbs *proxyBlobStore) storeLocal(ctx context.Context, dgst digest.Digest) e
 	}
 
 	return nil
+=======
+	proxyMetrics.BlobPush(uint64(localDesc.Size), true)
+	return true, pbs.localStore.ServeBlob(ctx, w, r, dgst)
+>>>>>>> bf933f54 (Fix proxy statistics)
 }
 
 func (pbs *proxyBlobStore) ServeBlob(ctx context.Context, w http.ResponseWriter, r *http.Request, dgst digest.Digest) error {
