@@ -8,28 +8,27 @@
 // An implementation registers its access controller by name with a constructor
 // which accepts an options map for configuring the access controller.
 //
-//		options := map[string]interface{}{"sillySecret": "whysosilly?"}
-// 		accessController, _ := auth.GetAccessController("silly", options)
+//	options := map[string]interface{}{"sillySecret": "whysosilly?"}
+//	accessController, _ := auth.GetAccessController("silly", options)
 //
 // This `accessController` can then be used in a request handler like so:
 //
-// 		func updateOrder(w http.ResponseWriter, r *http.Request) {
-//			orderNumber := r.FormValue("orderNumber")
-//			resource := auth.Resource{Type: "customerOrder", Name: orderNumber}
-// 			access := auth.Access{Resource: resource, Action: "update"}
+//	func updateOrder(w http.ResponseWriter, r *http.Request) {
+//		orderNumber := r.FormValue("orderNumber")
+//		resource := auth.Resource{Type: "customerOrder", Name: orderNumber}
+//		access := auth.Access{Resource: resource, Action: "update"}
 //
-// 			if ctx, err := accessController.Authorized(ctx, access); err != nil {
-//				if challenge, ok := err.(auth.Challenge) {
-//					// Let the challenge write the response.
-//					challenge.SetHeaders(r, w)
-//					w.WriteHeader(http.StatusUnauthorized)
-//					return
-//				} else {
-//					// Some other error.
-//				}
+//		if ctx, err := accessController.Authorized(ctx, access); err != nil {
+//			if challenge, ok := err.(auth.Challenge) {
+//				// Let the challenge write the response.
+//				challenge.SetHeaders(r, w)
+//				w.WriteHeader(http.StatusUnauthorized)
+//				return
+//			} else {
+//				// Some other error.
 //			}
-// 		}
-//
+//		}
+//	}
 package auth
 
 import (
@@ -56,6 +55,16 @@ var (
 	// ErrAuthenticationFailure returned when authentication fails.
 	ErrAuthenticationFailure = errors.New("authentication failure")
 )
+
+// InitFunc is the type of an AccessController factory function and is used
+// to register the constructor for different AccesController backends.
+type InitFunc func(options map[string]interface{}) (AccessController, error)
+
+var accessControllers map[string]InitFunc
+
+func init() {
+	accessControllers = make(map[string]InitFunc)
+}
 
 // UserInfo carries information about
 // an autenticated/authorized client.
@@ -166,16 +175,6 @@ func AuthorizedResources(ctx context.Context) []Resource {
 	}
 
 	return nil
-}
-
-// InitFunc is the type of an AccessController factory function and is used
-// to register the constructor for different AccesController backends.
-type InitFunc func(options map[string]interface{}) (AccessController, error)
-
-var accessControllers map[string]InitFunc
-
-func init() {
-	accessControllers = make(map[string]InitFunc)
 }
 
 // Register is used to register an InitFunc for

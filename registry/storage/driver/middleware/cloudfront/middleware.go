@@ -1,6 +1,5 @@
 // Package middleware - cloudfront wrapper for storage libs
 // N.B. currently only works with S3, not arbitrary sites
-//
 package middleware
 
 import (
@@ -17,7 +16,16 @@ import (
 	dcontext "github.com/docker/distribution/context"
 	storagedriver "github.com/docker/distribution/registry/storage/driver"
 	storagemiddleware "github.com/docker/distribution/registry/storage/driver/middleware"
+
+	"github.com/sirupsen/logrus"
 )
+
+// init registers the cloudfront layerHandler backend.
+func init() {
+	if err := storagemiddleware.Register("cloudfront", newCloudFrontStorageMiddleware); err != nil {
+		logrus.Errorf("failed to register cloudfront middleware: %v", err)
+	}
+}
 
 // cloudFrontStorageMiddleware provides a simple implementation of layerHandler that
 // constructs temporary signed CloudFront URLs from the storagedriver layer URL,
@@ -38,7 +46,9 @@ var _ storagedriver.StorageDriver = &cloudFrontStorageMiddleware{}
 
 // Optional options: ipFilteredBy, awsregion
 // ipfilteredby: valid value "none|aws|awsregion". "none", do not filter any IP, default value. "aws", only aws IP goes
-//               to S3 directly. "awsregion", only regions listed in awsregion options goes to S3 directly
+//
+//	to S3 directly. "awsregion", only regions listed in awsregion options goes to S3 directly
+//
 // awsregion: a comma separated string of AWS regions.
 func newCloudFrontStorageMiddleware(storageDriver storagedriver.StorageDriver, options map[string]interface{}) (storagedriver.StorageDriver, error) {
 	// parse baseurl
@@ -202,9 +212,4 @@ func (lh *cloudFrontStorageMiddleware) URLFor(ctx context.Context, path string, 
 		return "", err
 	}
 	return cfURL, nil
-}
-
-// init registers the cloudfront layerHandler backend.
-func init() {
-	storagemiddleware.Register("cloudfront", storagemiddleware.InitFunc(newCloudFrontStorageMiddleware))
 }

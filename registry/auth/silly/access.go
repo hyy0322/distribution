@@ -15,7 +15,16 @@ import (
 
 	dcontext "github.com/docker/distribution/context"
 	"github.com/docker/distribution/registry/auth"
+
+	"github.com/sirupsen/logrus"
 )
+
+// init registers the silly auth backend.
+func init() {
+	if err := auth.Register("silly", auth.InitFunc(newAccessController)); err != nil {
+		logrus.Errorf("failed to register silly auth: %v", err)
+	}
+}
 
 // accessController provides a simple implementation of auth.AccessController
 // that simply checks for a non-empty Authorization header. It is useful for
@@ -94,9 +103,4 @@ func (ch challenge) SetHeaders(r *http.Request, w http.ResponseWriter) {
 
 func (ch challenge) Error() string {
 	return fmt.Sprintf("silly authentication challenge: %#v", ch)
-}
-
-// init registers the silly auth backend.
-func init() {
-	auth.Register("silly", auth.InitFunc(newAccessController))
 }

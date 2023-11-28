@@ -7,7 +7,15 @@ import (
 
 	storagedriver "github.com/docker/distribution/registry/storage/driver"
 	storagemiddleware "github.com/docker/distribution/registry/storage/driver/middleware"
+
+	"github.com/sirupsen/logrus"
 )
+
+func init() {
+	if err := storagemiddleware.Register("redirect", newRedirectStorageMiddleware); err != nil {
+		logrus.Errorf("tailed to register redirect storage middleware: %v", err)
+	}
+}
 
 type redirectStorageMiddleware struct {
 	storagedriver.StorageDriver
@@ -43,8 +51,4 @@ func newRedirectStorageMiddleware(sd storagedriver.StorageDriver, options map[st
 func (r *redirectStorageMiddleware) URLFor(ctx context.Context, path string, options map[string]interface{}) (string, error) {
 	u := &url.URL{Scheme: r.scheme, Host: r.host, Path: path}
 	return u.String(), nil
-}
-
-func init() {
-	storagemiddleware.Register("redirect", storagemiddleware.InitFunc(newRedirectStorageMiddleware))
 }
