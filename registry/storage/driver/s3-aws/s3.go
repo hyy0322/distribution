@@ -70,9 +70,10 @@ const (
 	// for objects at or below this size.)  Empirically, 32 MB is optimal.
 	defaultMultipartCopyThresholdSize = 32 << 20
 
-	volcCRInternalDomain     = "cr.ivolces.com"
-	byteplusCRInternalDomain = "cr.ibytepluses.com"
-	byteplusCRDomain         = "cr.bytepluses.com"
+	// defaultTosPrivateDomainSuffix defines the default tos private domain suffix
+	defaultTosPrivateDomainSuffix = "ivolces.com"
+	// defaultTosPublicDomainSuffix defines the default tos public domain suffix
+	defaultTosPublicDomainSuffix = "volces.com"
 )
 
 // listMax is the largest amount of objects you can request from S3 in a list call
@@ -86,6 +87,11 @@ var validRegions = map[string]struct{}{}
 
 // validObjectACLs contains known s3 object Acls
 var validObjectACLs = map[string]struct{}{}
+
+var (
+	tosPrivateDomainSuffix = defaultTosPrivateDomainSuffix
+	tosPublicDomainSuffix  = defaultTosPublicDomainSuffix
+)
 
 // DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
 type DriverParameters struct {
@@ -915,11 +921,18 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 	domain := options["domain"].(string)
 	realIPs := options["realIPs"].(string)
 	clientEnv := options["clientEnv"].(string)
+	private, ok := options["tosPrivateDomainSuffix"]
+	if ok {
+		replaceTosPrivateDomainSuffix(private.(string))
+	}
+	public, ok := options["tosPublicDomainSuffix"]
+	if ok {
+		replaceTosPublicDomainSuffix(public.(string))
+	}
+
 	clientEnv = getClientEnv(domain, clientEnv, realIPs)
-	isBytePlus := isBytePlus(domain)
-	dcontext.GetLogger(ctx).Infof("request domain: %s, realIPs: %s, clientEnv: %s isBytePlus: %s",
-		domain, realIPs, clientEnv, isBytePlus)
-	req.HTTPRequest.URL.Host = GetTosEndpoint(ctx, clientEnv, req.HTTPRequest.URL.Host, isBytePlus)
+	dcontext.GetLogger(ctx).Infof("request domain: %s, realIPs: %s, clientEnv: %s", domain, realIPs, clientEnv)
+	req.HTTPRequest.URL.Host = GetTosEndpoint(ctx, clientEnv, req.HTTPRequest.URL.Host)
 	return req.Presign(expiresIn)
 }
 
@@ -939,7 +952,7 @@ func getClientEnv(requestDomain, clientEnvFromHeader, realIPs string) string {
 	switch {
 	case len(clientEnvFromHeader) != 0:
 		return clientEnvFromHeader
-	case strings.HasSuffix(requestDomain, volcCRInternalDomain) || strings.HasSuffix(requestDomain, byteplusCRInternalDomain):
+	case strings.HasSuffix(requestDomain, "cr.ivolces.com"):
 		return clientEnvInner
 	case len(realIPsSplit) == 0, checkIP(realIPsSplit[0]):
 		return clientEnvPrivate
@@ -948,46 +961,39 @@ func getClientEnv(requestDomain, clientEnvFromHeader, realIPs string) string {
 	}
 }
 
-func isBytePlus(requestDomain string) bool {
-	if strings.HasSuffix(requestDomain, byteplusCRInternalDomain) || strings.HasSuffix(requestDomain, byteplusCRDomain) {
-		return true
-	}
-	return false
-}
-
 // GetTosEndpoint ...
 // registry s3 endpoint 填 ivolces vpc 域名
-func GetTosEndpoint(ctx context.Context, clientEnv, redirectURL string, isBytePlus bool) string {
+func GetTosEndpoint(ctx context.Context, clientEnv, redirectURL string) string {
 	// 基础版 registry 配置的域名类似：tos-s3-cn-boe-inner.ivolces.com
 	// 企业版 registry 配置的域名类似：tos-s3-cn-boe.ivolces.com
 	// 经过两次 trim 可以得到一个纯粹的前缀类似 tos-s3-cn-boe
 	redirectURLPrefix := strings.TrimSuffix(redirectURL, ".ivolces.com")
 	redirectURLPrefix = strings.TrimSuffix(redirectURLPrefix, "-inner")
-	if !isBytePlus {
-		switch clientEnv {
-		case clientEnvInner:
-			dcontext.GetLogger(ctx).Info("request from internal zone")
-			return fmt.Sprintf("%s-inner.ivolces.com", redirectURLPrefix)
-		case clientEnvPrivate:
-			dcontext.GetLogger(ctx).Info("request from vpc zone")
-			return fmt.Sprintf("%s.ivolces.com", redirectURLPrefix)
-		default: // 默认返回 tos 公网地址
-			dcontext.GetLogger(ctx).Info("request from public zone")
-			return fmt.Sprintf("%s.volces.com", redirectURLPrefix)
-		}
-	} else {
-		switch clientEnv {
-		case clientEnvInner:
-			dcontext.GetLogger(ctx).Info("request from internal zone")
-			return fmt.Sprintf("%s-inner.ibytepluses.com", redirectURLPrefix)
-		case clientEnvPrivate:
-			dcontext.GetLogger(ctx).Info("request from vpc zone")
-			return fmt.Sprintf("%s.ibytepluses.com", redirectURLPrefix)
-		default: // 默认返回 tos 公网地址
-			dcontext.GetLogger(ctx).Info("request from public zone")
-			return fmt.Sprintf("%s.bytepluses.com", redirectURLPrefix)
-		}
+	switch clientEnv {
+	case clientEnvInner:
+		dcontext.GetLogger(ctx).Info("request from internal zone")
+		return fmt.Sprintf("%s-inner.%s", redirectURLPrefix, tosPrivateDomainSuffix)
+	case clientEnvPrivate:
+		dcontext.GetLogger(ctx).Info("request from vpc zone")
+		return fmt.Sprintf("%s.%s", redirectURLPrefix, tosPrivateDomainSuffix)
+	default: // 默认返回 tos 公网地址
+		dcontext.GetLogger(ctx).Info("request from public zone")
+		return fmt.Sprintf("%s.%s", redirectURLPrefix, tosPublicDomainSuffix)
 	}
+}
+
+func replaceTosPrivateDomainSuffix(suffix string) {
+	if len(suffix) == 0 {
+		return
+	}
+	tosPrivateDomainSuffix = suffix
+}
+
+func replaceTosPublicDomainSuffix(suffix string) {
+	if len(suffix) == 0 {
+		return
+	}
+	tosPublicDomainSuffix = suffix
 }
 
 func checkIP(ipStr string) bool {
