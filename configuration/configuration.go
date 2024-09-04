@@ -642,6 +642,9 @@ type Proxy struct {
 
 	// Password of the hub user
 	Password string `yaml:"password"`
+
+	// EnableCachePurge will start TTLExpirationScheduler
+	EnableCachePurge bool `yaml:"enableCachePurge"`
 }
 
 // Parse parses an input configuration yaml document into a Configuration struct

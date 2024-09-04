@@ -88,9 +88,11 @@ func NewRegistryPullThroughCache(ctx context.Context, registry distribution.Name
 		return nil
 	})
 
-	err = s.Start()
-	if err != nil {
-		return nil, err
+	if config.EnableCachePurge {
+		err = s.Start()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cs, err := configureAuth(config.Username, config.Password, config.RemoteURL)
