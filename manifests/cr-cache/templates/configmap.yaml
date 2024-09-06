@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+  name: {{ .Values.configmap.name }}
+  namespace: {{ .Release.Namespace | quote }}
+data:
+  config.yml: |
+    version: 0.1
+    log:
+      accesslog:
+        disabled: false
+      level: "info"
+      formatter: "text"
+    http:
+      # secret: setted through environment variable
+      debug:
+        addr: :5001
+        prometheus:
+          enabled: true
+          path: "/metrics"
+      net: "tcp"
+      addr: :5000
+      headers: {"X-Content-Type-Options":["nosniff"]}
+      http2:
+        disabled: false
+      host: ""
+      relativeurls: true
+      tls:
+        certificate: /app/tls/tls.cert
+        key: /app/tls/tls.key
+      secret: {{ randAlphaNum 10 }}
+    storage:
+      delete:
+        enabled: true
+      cache:
+        blobdescriptor: inmemory
+      maintenance:
+        uploadPurging:
+          enabled: true
+          age: 168h0m0s
+          interval: 24h0m0s
+          dryRun: false
+        readOnly:
+          enabled: false
+      redirect:
+        disable: false
+      s3:
+        region: {{ .Values.region }}
+        bucket: {{ .Values.s3.bucket }}
+        encrypt: false
+        skipverify: true
+        secure: false
+        v4auth: true
+        chunksize: 10485760
+        storageclass: "STANDARD"
+        accesskey: {{ .Values.s3.ak }}
+        secretkey: {{ .Values.s3.sk }}
+        regionendpoint: {{ .Values.s3.endpoint }}
+    proxy:
+      remoteurl: {{ .Values.proxy.remoteurl }}
+      username: {{ .Values.proxy.username }}
+      password: {{ .Values.proxy.password }}
+      ttl: 168h
+    compatibility:
+      schema1:
+        # signingkeyfile: setted through environment variable
+        enabled: false
+    validation:
+      disabled: true
+    notifications:
+      events:
+        includereferences: true
+    
+    health:
+      storagedriver:
+        enabled: true
+        interval: 5s
+        threshold: 3

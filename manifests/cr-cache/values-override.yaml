@@ -1,0 +1,6 @@
+##global
+imageRegistry: {{ .Global.common.image.registry }}
+## private platform(vecps): veCompass
+## private platform(专有云): veStackgi
+productName: {{ .Global.common.platformType }}
+region: {{ .Global.product.cr.region }}

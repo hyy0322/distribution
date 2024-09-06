@@ -1,0 +1,119 @@
+##global
+imageRegistry: "cr-cn-guilin-boe.volces.com"
+## private platform(vecps): veCompass
+## private platform(专有云): veStack
+productName: "volcEngine"
+region: "cn-guilin-boe"
+
+##############
+##fixed
+platformConfig:
+  ## Container repository for platform components
+  imageRepositoryRelease: cr-system
+  imageRepositoryLibrary: infcplibrary
+  ## Platform-wide image pull policy
+  imagePullPolicy: Always
+  name: cr-cache
+## ref: https://kubernetes.io/docs/admin/authorization/rbac/
+rbac:
+  ## the system namespace should have the cluster-admin ClusterRole binded by default, so there
+  ## is no need to create additional RBAC resources
+  create: false
+  ## RBAC API version
+  apiVersion: v1beta1
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+serviceAccount:
+  create: false
+  ## The name of the ServiceAccount to use.
+  ## If not set and create is true, a name is generated using the common.names.fullname template
+  # name:
+image:
+  name: registry-photon
+  tag: v2.5.3-cr-v2.17.0
+log:
+  verbosity: 1
+service:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  port: 443
+  annotations:
+    service.beta.kubernetes.io/volcengine-loadbalancer-address-type: PRIVATE
+    service.beta.kubernetes.io/volcengine-loadbalancer-backend-type: NodePort
+    service.beta.kubernetes.io/volcengine-loadbalancer-class: plb
+    service.beta.kubernetes.io/volcengine-loadbalancer-service-mode: MULTI
+    service.beta.kubernetes.io/volcengine-loadbalancer-id: plb-3rebo0xrb86io5zsk2hlhhaxb
+  labels: {}
+
+
+##############
+##部署
+securityContext:
+  enabled: true
+  runAsUser: 10000
+  runAsGroup: 10000
+  fsGroup: 10000
+podLabels:
+  app.cr.paastob/name: cr-cache
+resources:
+  limits:
+    cpu: 8
+    memory: 8Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+replicaCount: 3
+minReadySeconds: 0
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 5
+  targetCPU: 50
+  targetMemory: 50
+configmap:
+  name: "cr-cache-config"
+##############
+##暂未使用或赋值
+labels: {}
+priorityClassName: ""
+extraArgs: {}
+podAnnotations: {}
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: cr-cache
+          topologyKey: kubernetes.io/hostname
+        weight: 100
+      - podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: cr-cache
+          topologyKey: topology.kubernetes.io/zone
+        weight: 100
+nodeSelector: {}
+tolerations: []
+tls:
+  ## base64 ecncoded cert
+  cert: ""
+  ## base64 ecncoded key
+  key: ""
+
+s3:
+  ak: ""
+  sk: ""
+  bucket: ""
+  endpoint: ""
+
+proxy:
+  remoteurl: "https://registry-1.docker.io"
+  username: ""
+  password: ""
+
+proxyAddress: ""
+
+dns:
+  dockerhub:
+    domain: ""
+    ip: ""
