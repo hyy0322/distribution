@@ -1,0 +1,16 @@
+apiVersion: dns.vke.volcengine.com/v1beta1
+kind: DNS
+metadata:
+  name: cr-cache-dockerhub-dev-inner
+  namespace: {{ .Release.Namespace }}
+spec:
+  dnsType: underlay
+  recordSpec:
+    rrs:
+      - {{ .Values.dns.dockerhub.domain }}.cr
+    ttl: 600
+    type: A
+    valueSpec:
+      values:
+        - {{ .Values.dns.dockerhub.innerIp }}
+  zoneName: ivolces.com

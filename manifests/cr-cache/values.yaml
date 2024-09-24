@@ -29,7 +29,7 @@ serviceAccount:
   # name:
 image:
   name: registry-photon
-  tag: v2.5.3-cr-v2.17.0
+  tag: v2.5.3-cr-v2.24.0
 log:
   verbosity: 1
 service:
@@ -41,7 +41,17 @@ service:
     service.beta.kubernetes.io/volcengine-loadbalancer-backend-type: NodePort
     service.beta.kubernetes.io/volcengine-loadbalancer-class: plb
     service.beta.kubernetes.io/volcengine-loadbalancer-service-mode: MULTI
-    service.beta.kubernetes.io/volcengine-loadbalancer-id: plb-3rebo0xrb86io5zsk2hlhhaxb
+    service.beta.kubernetes.io/volcengine-loadbalancer-id: ""
+  labels: {}
+innerService:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  port: 443
+  annotations:
+    service.beta.kubernetes.io/volcengine-loadbalancer-address-type: INNER
+    service.beta.kubernetes.io/volcengine-loadbalancer-backend-type: NodePort
+    service.beta.kubernetes.io/volcengine-loadbalancer-class: plb
+    service.beta.kubernetes.io/volcengine-loadbalancer-id: ""
   labels: {}
 
 
@@ -118,3 +128,4 @@ dns:
   dockerhub:
     domain: ""
     ip: ""
+    innerIp: ""
