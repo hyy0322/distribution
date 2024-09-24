@@ -291,6 +291,8 @@ func (ac *accessController) Authorized(ctx context.Context, accessItems ...auth.
 		}
 	}
 
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.Claims.OriginToken))
+
 	ctx = auth.WithResources(ctx, token.resources())
 
 	return auth.WithUser(ctx, auth.UserInfo{Name: token.Claims.Subject}), nil

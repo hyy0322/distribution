@@ -134,8 +134,8 @@ func makeTestToken(issuer, audience string, access []*ResourceActions, rootKey l
 		return nil, fmt.Errorf("unable to marshal claim set: %s", err)
 	}
 
-	encodedJoseHeader := joseBase64UrlEncode(joseHeaderBytes)
-	encodedClaimSet := joseBase64UrlEncode(claimSetBytes)
+	encodedJoseHeader := JoseBase64UrlEncode(joseHeaderBytes)
+	encodedClaimSet := JoseBase64UrlEncode(claimSetBytes)
 	encodingToSign := fmt.Sprintf("%s.%s", encodedJoseHeader, encodedClaimSet)
 
 	var signatureBytes []byte
@@ -143,7 +143,7 @@ func makeTestToken(issuer, audience string, access []*ResourceActions, rootKey l
 		return nil, fmt.Errorf("unable to sign jwt payload: %s", err)
 	}
 
-	signature := joseBase64UrlEncode(signatureBytes)
+	signature := JoseBase64UrlEncode(signatureBytes)
 	tokenString := fmt.Sprintf("%s.%s", encodingToSign, signature)
 
 	return NewToken(tokenString)
@@ -307,10 +307,10 @@ func writeTempRootCerts(rootKeys []libtrust.PrivateKey) (filename string, err er
 // TestAccessController tests complete integration of the token auth package.
 // It starts by mocking the options for a token auth accessController which
 // it creates. It then tries a few mock requests:
-// 		- don't supply a token; should error with challenge
-//		- supply an invalid token; should error with challenge
-// 		- supply a token with insufficient access; should error with challenge
-//		- supply a valid token; should not error
+//   - don't supply a token; should error with challenge
+//   - supply an invalid token; should error with challenge
+//   - supply a token with insufficient access; should error with challenge
+//   - supply a valid token; should not error
 func TestAccessController(t *testing.T) {
 	// Make 2 keys; only the first is to be a trusted root key.
 	rootKeys, err := makeRootKeys(2)
@@ -384,7 +384,7 @@ func TestAccessController(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.compactRaw()))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.CompactRaw()))
 
 	authCtx, err = accessController.Authorized(ctx, testAccess)
 	challenge, ok = err.(auth.Challenge)
@@ -410,7 +410,7 @@ func TestAccessController(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.compactRaw()))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.CompactRaw()))
 
 	authCtx, err = accessController.Authorized(ctx, testAccess)
 	challenge, ok = err.(auth.Challenge)
@@ -440,7 +440,7 @@ func TestAccessController(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.compactRaw()))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.CompactRaw()))
 
 	authCtx, err = accessController.Authorized(ctx, testAccess)
 	if err != nil {
@@ -470,7 +470,7 @@ func TestAccessController(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.compactRaw()))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.CompactRaw()))
 
 	_, err = accessController.Authorized(ctx, testAccess)
 	if err != nil {

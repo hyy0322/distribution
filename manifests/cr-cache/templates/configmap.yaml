@@ -57,8 +57,16 @@ data:
         accesskey: {{ .Values.s3.ak }}
         secretkey: {{ .Values.s3.sk }}
         regionendpoint: {{ .Values.s3.endpoint }}
+    auth:
+      token:
+        autoredirect: true
+        realm: cr-cache
+        service: cr-cache
+        issuer: cr-cache
+        rootcertbundle: /app/tls/tls.cert
     proxy:
       remoteurl: {{ .Values.proxy.remoteurl }}
+      remoteauthurl: {{ .Values.proxy.remoteauthurl }}
       username: {{ .Values.proxy.username }}
       password: {{ .Values.proxy.password }}
       ttl: 168h

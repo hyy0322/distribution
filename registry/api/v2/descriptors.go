@@ -1593,4 +1593,33 @@ var routeDescriptors = []RouteDescriptor{
 			},
 		},
 	},
+	{
+		Name:        RouteNameToken,
+		Path:        "/auth/token",
+		Entity:      "Token",
+		Description: `Token Authentication Implementation.`,
+		Methods: []MethodDescriptor{
+			{
+				Method:      "GET",
+				Description: "Token Authentication Implementation.",
+				Requests: []RequestDescriptor{
+					{
+						Headers: []ParameterDescriptor{
+							hostHeader,
+							authHeader,
+						},
+						Successes: []ResponseDescriptor{
+							{
+								Description: "Request token handler success.",
+								StatusCode:  http.StatusOK,
+							},
+						},
+						Failures: []ResponseDescriptor{
+							tooManyRequestsDescriptor,
+						},
+					},
+				},
+			},
+		},
+	},
 }

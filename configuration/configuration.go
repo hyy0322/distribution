@@ -587,7 +587,7 @@ type Events struct {
 	IncludeReferences bool `yaml:"includereferences"` // include reference data in manifest events
 }
 
-//Ignore configures mediaTypes and actions of the event, that it won't be propagated
+// Ignore configures mediaTypes and actions of the event, that it won't be propagated
 type Ignore struct {
 	MediaTypes []string `yaml:"mediatypes"` // target media types to ignore
 	Actions    []string `yaml:"actions"`    // ignore action types
@@ -636,6 +636,9 @@ type Middleware struct {
 type Proxy struct {
 	// RemoteURL is the URL of the remote registry
 	RemoteURL string `yaml:"remoteurl"`
+
+	// RemoteAuthURL is the URL of the remote registry auth
+	RemoteAuthURL string `yaml:"remoteauthurl"`
 
 	// Username of the hub user
 	Username string `yaml:"username"`
