@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "common.names.fullname" . }}-inner
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- with .Values.serviceInner.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    {{- if .Values.serviceInner.labels }}
+    {{ toYaml .Values.serviceInner.labels | indent 4 }}
+    {{- end }}
+spec:
+  type: {{ .Values.serviceInner.type }}
+  externalTrafficPolicy: {{ .Values.serviceInner.externalTrafficPolicy }}
+  {{- if and .Values.serviceInner.loadBalancerIP (eq .Values.privateService.type "LoadBalancer") }}
+  loadBalancerIP: {{ .Values.serviceInner.loadBalancerIP }}
+  {{- end }}
+  {{- if and (eq .Values.serviceInner.type "LoadBalancer") .Values.serviceInner.loadBalancerSourceRanges }}
+  {{- with .Values.serviceInner.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  {{- if and (eq .Values.serviceInner.type "ClusterIP") .Values.serviceInner.clusterIP }}
+  clusterIP: {{ .Values.serviceInner.clusterIP }}
+  {{- end }}
+  ports:
+    - name: https
+      port: {{ .Values.serviceInner.port }}
+      targetPort: 5000
+      {{- if and .Values.serviceInner.nodePort (or (eq .Values.serviceInner.type "NodePort") (eq .Values.serviceInner.type "LoadBalancer")) }}
+      nodePort: {{ .Values.serviceInner.nodePort }}
+      {{- end }}
+  selector: {{- include "common.labels.matchLabels" . | nindent 4 }}
+  {{- if .Values.podLabels }}
+  {{ toYaml .Values.podLabels | indent 2 }}
+  {{- end }}
