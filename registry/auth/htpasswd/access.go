@@ -16,11 +16,18 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
 	dcontext "github.com/docker/distribution/context"
 	"github.com/docker/distribution/registry/auth"
+
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 )
+
+func init() {
+	if err := auth.Register("htpasswd", auth.InitFunc(newAccessController)); err != nil {
+		logrus.Errorf("failed to register htpasswd auth: %v", err)
+	}
+}
 
 type accessController struct {
 	realm    string
@@ -153,8 +160,4 @@ func createHtpasswdFile(path string) error {
 		"password": pass,
 	}).Warnf("htpasswd is missing, provisioning with default user")
 	return nil
-}
-
-func init() {
-	auth.Register("htpasswd", auth.InitFunc(newAccessController))
 }

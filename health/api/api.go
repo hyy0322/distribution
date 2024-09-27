@@ -11,6 +11,13 @@ var (
 	updater = health.NewStatusUpdater()
 )
 
+// init sets up the two endpoints to bring the service up and down
+func init() {
+	health.Register("manual_http_status", updater)
+	http.HandleFunc("/debug/health/down", DownHandler)
+	http.HandleFunc("/debug/health/up", UpHandler)
+}
+
 // DownHandler registers a manual_http_status that always returns an Error
 func DownHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
@@ -27,11 +34,4 @@ func UpHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
-}
-
-// init sets up the two endpoints to bring the service up and down
-func init() {
-	health.Register("manual_http_status", updater)
-	http.HandleFunc("/debug/health/down", DownHandler)
-	http.HandleFunc("/debug/health/up", UpHandler)
 }

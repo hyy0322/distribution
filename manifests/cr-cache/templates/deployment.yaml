@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "common.names.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+spec:
+  replicas: {{ default "1" .Values.replicaCount }}
+  selector:
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+    {{- if .Values.podLabels }}
+    {{ toYaml .Values.podLabels | indent 2 }}
+    {{- end }}
+  template:
+    metadata:
+      {{- if .Values.podAnnotations }}
+      annotations: {{- .Values.podAnnotations | nindent 8 }}
+      {{- end }}
+      labels: {{- include "common.labels.standard" . | nindent 8 }}
+      {{- if .Values.podLabels }}
+      {{ toYaml .Values.podLabels | indent 2 }}
+      {{- end }}
+    spec:
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- if .Values.securityContext.enabled }}
+      securityContext:
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.securityContext.runAsGroup }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+      {{- end }}
+      serviceAccountName: {{ template "common.auth.serviceAccountName" . }}
+      {{- if .Values.affinity }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{- .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations: {{- include .Values.tolerations | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: registry
+          image: {{ template "common.images.image" . }}
+          imagePullPolicy: {{ default "Always" .Values.platformConfig.imagePullPolicy | quote }}
+          args:
+            - serve
+            - /etc/registry/config.yml
+          env:
+            - name: "POD_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: "POD_NAMESPACE"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: "HTTP_PROXY"
+              value: {{ .Values.proxyAddress }}
+            - name: "HTTPS_PROXY"
+              value: {{ .Values.proxyAddress }}
+            - name: "NO_PROXY"
+              value: "{{ .Values.s3.endpoint }},{{ .Values.s3.bucket }}.{{ .Values.s3.endpoint }}"
+          ports:
+            - containerPort: 5000
+              name: api
+              protocol: TCP
+            - containerPort: 5001
+              name: metrics
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: api
+              scheme: HTTPS
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: api
+              scheme: HTTPS
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          {{- if .Values.resources }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: cr-cache-config
+              mountPath: /etc/registry
+            - name: cr-cache-tls-for-https
+              mountPath: /app/tls
+              readOnly: true
+      volumes:
+        - name: cr-cache-config
+          configMap:
+            name: {{ .Values.configmap.name }}
+            items:
+              - key: config.yml
+                path: config.yml
+        - name: cr-cache-tls-for-https
+          secret:
+            secretName: cr-cache-tls-for-https

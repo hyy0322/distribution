@@ -62,6 +62,8 @@ type App struct {
 
 	Config *configuration.Configuration
 
+	signKey libtrust.PrivateKey
+
 	router           *mux.Router                    // main application router, configured with dispatchers
 	driver           storagedriver.StorageDriver    // driver maintains the app global storage driver instance.
 	registry         distribution.Namespace         // registry is the primary registry backend for the app instance.
@@ -103,6 +105,20 @@ func NewApp(ctx context.Context, config *configuration.Configuration) *App {
 		isCache: config.Proxy.RemoteURL != "",
 	}
 
+	var err error
+
+	if app.Config.Proxy.RemoteURL != "" {
+		keyPEMBlock, err := os.ReadFile(app.Config.HTTP.TLS.Key)
+		if err != nil {
+			panic(err)
+		}
+		pk, err := libtrust.UnmarshalPrivateKeyPEM(keyPEMBlock)
+		if err != nil {
+			panic(err)
+		}
+		app.signKey = pk
+	}
+
 	// Register the handler dispatchers.
 	app.register(v2.RouteNameBase, func(ctx *Context, r *http.Request) http.Handler {
 		return http.HandlerFunc(apiBase)
@@ -113,6 +129,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) *App {
 	app.register(v2.RouteNameBlob, blobDispatcher)
 	app.register(v2.RouteNameBlobUpload, blobUploadDispatcher)
 	app.register(v2.RouteNameBlobUploadChunk, blobUploadDispatcher)
+	app.register(v2.RouteNameToken, tokenDispatcher)
 
 	// override the storage driver's UA string for registry outbound HTTP requests
 	storageParams := config.Storage.Parameters()
@@ -121,7 +138,6 @@ func NewApp(ctx context.Context, config *configuration.Configuration) *App {
 	}
 	storageParams["useragent"] = fmt.Sprintf("docker-distribution/%s %s", version.Version, runtime.Version())
 
-	var err error
 	app.driver, err = factory.Create(config.Storage.Type(), storageParams)
 	if err != nil {
 		// TODO(stevvooe): Move the creation of a service into a protected
@@ -701,9 +717,11 @@ func (app *App) dispatcher(dispatch dispatchFunc) http.Handler {
 
 		context := app.context(w, r)
 
-		if err := app.authorized(w, r, context); err != nil {
-			dcontext.GetLogger(context).Warnf("error authorizing context: %v", err)
-			return
+		if !app.isTokenHandler(r) {
+			if err := app.authorized(w, r, context); err != nil {
+				dcontext.GetLogger(context).Warnf("error authorizing context: %v", err)
+				return
+			}
 		}
 
 		// Add username to request logging
@@ -928,7 +946,16 @@ func (app *App) nameRequired(r *http.Request) bool {
 		return true
 	}
 	routeName := route.GetName()
-	return routeName != v2.RouteNameBase && routeName != v2.RouteNameCatalog
+	return routeName != v2.RouteNameBase && routeName != v2.RouteNameCatalog && routeName != v2.RouteNameToken
+}
+
+func (app *App) isTokenHandler(r *http.Request) bool {
+	route := mux.CurrentRoute(r)
+	if route == nil {
+		return false
+	}
+	routeName := route.GetName()
+	return routeName == v2.RouteNameToken
 }
 
 // apiBase implements a simple yes-man for doing overall checks against the

@@ -9,6 +9,16 @@ import (
 	"github.com/opencontainers/go-digest"
 )
 
+var routeDescriptorsMap map[string]RouteDescriptor
+
+func init() {
+	routeDescriptorsMap = make(map[string]RouteDescriptor, len(routeDescriptors))
+
+	for _, descriptor := range routeDescriptors {
+		routeDescriptorsMap[descriptor.Name] = descriptor
+	}
+}
+
 var (
 	nameParameterDescriptor = ParameterDescriptor{
 		Name:        "name",
@@ -1583,14 +1593,33 @@ var routeDescriptors = []RouteDescriptor{
 			},
 		},
 	},
-}
-
-var routeDescriptorsMap map[string]RouteDescriptor
-
-func init() {
-	routeDescriptorsMap = make(map[string]RouteDescriptor, len(routeDescriptors))
-
-	for _, descriptor := range routeDescriptors {
-		routeDescriptorsMap[descriptor.Name] = descriptor
-	}
+	{
+		Name:        RouteNameToken,
+		Path:        "/auth/token",
+		Entity:      "Token",
+		Description: `Token Authentication Implementation.`,
+		Methods: []MethodDescriptor{
+			{
+				Method:      "GET",
+				Description: "Token Authentication Implementation.",
+				Requests: []RequestDescriptor{
+					{
+						Headers: []ParameterDescriptor{
+							hostHeader,
+							authHeader,
+						},
+						Successes: []ResponseDescriptor{
+							{
+								Description: "Request token handler success.",
+								StatusCode:  http.StatusOK,
+							},
+						},
+						Failures: []ResponseDescriptor{
+							tooManyRequestsDescriptor,
+						},
+					},
+				},
+			},
+		},
+	},
 }

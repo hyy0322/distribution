@@ -52,6 +52,8 @@ type ClaimSet struct {
 
 	// Private claims
 	Access []*ResourceActions `json:"access"`
+
+	OriginToken string `json:"origin_token"`
 }
 
 // Header describes the header section of a JSON Web Token.
@@ -100,12 +102,12 @@ func NewToken(rawToken string) (*Token, error) {
 		}
 	}()
 
-	if headerJSON, err = joseBase64UrlDecode(rawHeader); err != nil {
+	if headerJSON, err = JoseBase64UrlDecode(rawHeader); err != nil {
 		err = fmt.Errorf("unable to decode header: %s", err)
 		return nil, ErrMalformedToken
 	}
 
-	if claimsJSON, err = joseBase64UrlDecode(rawClaims); err != nil {
+	if claimsJSON, err = JoseBase64UrlDecode(rawClaims); err != nil {
 		err = fmt.Errorf("unable to decode claims: %s", err)
 		return nil, ErrMalformedToken
 	}
@@ -115,7 +117,7 @@ func NewToken(rawToken string) (*Token, error) {
 	token.Claims = new(ClaimSet)
 
 	token.Raw = strings.Join(parts[:2], TokenSeparator)
-	if token.Signature, err = joseBase64UrlDecode(parts[2]); err != nil {
+	if token.Signature, err = JoseBase64UrlDecode(parts[2]); err != nil {
 		err = fmt.Errorf("unable to decode signature: %s", err)
 		return nil, ErrMalformedToken
 	}
@@ -185,13 +187,15 @@ func (t *Token) Verify(verifyOpts VerifyOptions) error {
 
 // VerifySigningKey attempts to get the key which was used to sign this token.
 // The token header should contain either of these 3 fields:
-//      `x5c` - The x509 certificate chain for the signing key. Needs to be
-//              verified.
-//      `jwk` - The JSON Web Key representation of the signing key.
-//              May contain its own `x5c` field which needs to be verified.
-//      `kid` - The unique identifier for the key. This library interprets it
-//              as a libtrust fingerprint. The key itself can be looked up in
-//              the trustedKeys field of the given verify options.
+//
+//	`x5c` - The x509 certificate chain for the signing key. Needs to be
+//	        verified.
+//	`jwk` - The JSON Web Key representation of the signing key.
+//	        May contain its own `x5c` field which needs to be verified.
+//	`kid` - The unique identifier for the key. This library interprets it
+//	        as a libtrust fingerprint. The key itself can be looked up in
+//	        the trustedKeys field of the given verify options.
+//
 // Each of these methods are tried in that order of preference until the
 // signing key is found or an error is returned.
 func (t *Token) VerifySigningKey(verifyOpts VerifyOptions) (signingKey libtrust.PublicKey, err error) {
@@ -373,6 +377,6 @@ func (t *Token) resources() []auth.Resource {
 	return resources
 }
 
-func (t *Token) compactRaw() string {
-	return fmt.Sprintf("%s.%s", t.Raw, joseBase64UrlEncode(t.Signature))
+func (t *Token) CompactRaw() string {
+	return fmt.Sprintf("%s.%s", t.Raw, JoseBase64UrlEncode(t.Signature))
 }

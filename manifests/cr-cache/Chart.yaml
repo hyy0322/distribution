@@ -1,0 +1,6 @@
+apiVersion: v2
+name: cr-cache
+description: cr cache
+type: application
+appVersion: v1.0.0
+version: v1.0.0

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/docker/distribution"
+	dcontext "github.com/docker/distribution/context"
 )
 
 // proxyTagService supports local and remote lookup of tags.
@@ -28,6 +29,8 @@ func (pt proxyTagService) Get(ctx context.Context, tag string) (distribution.Des
 				return distribution.Descriptor{}, err
 			}
 			return desc, nil
+		} else {
+			dcontext.GetLogger(ctx).Errorf("Error getting tag from remote: %s", err)
 		}
 	}
 

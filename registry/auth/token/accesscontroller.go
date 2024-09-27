@@ -15,7 +15,16 @@ import (
 	dcontext "github.com/docker/distribution/context"
 	"github.com/docker/distribution/registry/auth"
 	"github.com/docker/libtrust"
+
+	"github.com/sirupsen/logrus"
 )
+
+// init handles registering the token auth backend.
+func init() {
+	if err := auth.Register("token", auth.InitFunc(newAccessController)); err != nil {
+		logrus.Errorf("tailed to register token auth: %v", err)
+	}
+}
 
 // accessSet maps a typed, named resource to
 // a set of actions requested or authorized.
@@ -282,12 +291,9 @@ func (ac *accessController) Authorized(ctx context.Context, accessItems ...auth.
 		}
 	}
 
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.Claims.OriginToken))
+
 	ctx = auth.WithResources(ctx, token.resources())
 
 	return auth.WithUser(ctx, auth.UserInfo{Name: token.Claims.Subject}), nil
-}
-
-// init handles registering the token auth backend.
-func init() {
-	auth.Register("token", auth.InitFunc(newAccessController))
 }

@@ -88,9 +88,13 @@ func NewRegistryPullThroughCache(ctx context.Context, registry distribution.Name
 		return nil
 	})
 
-	err = s.Start()
-	if err != nil {
-		return nil, err
+	if config.EnableCachePurge {
+		err = s.Start()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		s = nil
 	}
 
 	cs, err := configureAuth(config.Username, config.Password, config.RemoteURL)
@@ -119,23 +123,13 @@ func (pr *proxyingRegistry) Repositories(ctx context.Context, repos []string, la
 }
 
 func (pr *proxyingRegistry) Repository(ctx context.Context, name reference.Named) (distribution.Repository, error) {
-	c := pr.authChallenger
-
-	tkopts := auth.TokenHandlerOptions{
-		Transport:   http.DefaultTransport,
-		Credentials: c.credentialStore(),
-		Scopes: []auth.Scope{
-			auth.RepositoryScope{
-				Repository: name.Name(),
-				Actions:    []string{"pull"},
-			},
-		},
-		Logger: dcontext.GetLogger(ctx),
+	req, err := dcontext.GetRequest(ctx)
+	if err != nil {
+		return nil, err
 	}
-
-	tr := transport.NewTransport(http.DefaultTransport,
-		auth.NewAuthorizer(c.challengeManager(),
-			auth.NewTokenHandlerWithOptions(tkopts)))
+	header := http.Header{}
+	header.Set("Authorization", req.Header.Get("Authorization"))
+	tr := transport.NewTransport(http.DefaultTransport, transport.NewHeaderRequestModifier(header))
 
 	localRepo, err := pr.embedded.Repository(ctx, name)
 	if err != nil {
