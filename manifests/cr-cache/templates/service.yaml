@@ -35,7 +35,7 @@ spec:
     - name: metrics
       port: 5001
       protocol: TCP
-      targetPort: metrics
+      targetPort: 5001
   selector: {{- include "common.labels.matchLabels" . | nindent 4 }}
   {{- if .Values.podLabels }}
   {{ toYaml .Values.podLabels | indent 2 }}
