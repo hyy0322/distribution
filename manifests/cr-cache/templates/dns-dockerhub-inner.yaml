@@ -1,7 +1,7 @@
 apiVersion: dns.vke.volcengine.com/v1beta1
 kind: DNS
 metadata:
-  name: cr-cache-dockerhub-dev-inner
+  name: cr-cache-dockerhub-inner
   namespace: {{ .Release.Namespace }}
 spec:
   dnsType: underlay

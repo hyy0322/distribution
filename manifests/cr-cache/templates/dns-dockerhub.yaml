@@ -1,7 +1,7 @@
 apiVersion: dns.vke.volcengine.com/v1beta1
 kind: DNS
 metadata:
-  name: cr-cache-dockerhub-dev
+  name: cr-cache-dockerhub
   namespace: {{ .Release.Namespace }}
 spec:
   dnsType: private
