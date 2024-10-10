@@ -57,9 +57,17 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: "HTTP_PROXY"
-              value: {{ .Values.proxyAddress }}
+              {{- if .Values.proxyAddress }}
+              value: "http://{{ .Values.proxyAddress }}"
+              {{- else }}
+              value: ""
+              {{- end }}
             - name: "HTTPS_PROXY"
-              value: {{ .Values.proxyAddress }}
+              {{- if .Values.proxyAddress }}
+              value: "http://{{ .Values.proxyAddress }}"
+              {{- else }}
+              value: ""
+              {{- end }}
             - name: "NO_PROXY"
               value: "{{ .Values.s3.endpoint }},{{ .Values.s3.bucket }}.{{ .Values.s3.endpoint }}"
           ports:
