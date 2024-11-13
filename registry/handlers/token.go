@@ -103,6 +103,19 @@ func ping(manager challenge.Manager, endpoint, versionHeader string) error {
 	return manager.AddResponse(resp)
 }
 
+func retry(process func() (retry bool), betweenProcess func(), retryTimes int) {
+	var next = true
+	for i := 0; i < retryTimes; i++ {
+		if !next {
+			return
+		}
+		next = process()
+		if next && betweenProcess != nil && i < retryTimes-1 {
+			betweenProcess()
+		}
+	}
+}
+
 func (h *tokenHandler) GetToken(w http.ResponseWriter, r *http.Request) {
 	var (
 		user, pwd string
@@ -190,9 +203,20 @@ func (h *tokenHandler) GetToken(w http.ResponseWriter, r *http.Request) {
 
 	client := &http.Client{
 		Transport: http.DefaultTransport,
-		Timeout:   time.Second * 10,
+		Timeout:   time.Second * 15,
 	}
-	resp, err := client.Do(req)
+
+	var resp *http.Response
+	retry(func() bool {
+		resp, err = client.Do(req)
+		if err != nil {
+			context.GetLogger(h).Error("request remote auth token error ", err)
+			return true
+		}
+		return false
+	}, func() {
+		time.Sleep(time.Second)
+	}, 3)
 	if err != nil {
 		context.GetLogger(h).Error("request remote auth token error ", err)
 		return
