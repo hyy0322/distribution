@@ -6,6 +6,7 @@ import (
 
 	dcontext "github.com/docker/distribution/context"
 	"github.com/docker/distribution/registry/storage/driver"
+
 	"github.com/opencontainers/go-digest"
 )
 
@@ -82,6 +83,27 @@ func (v Vacuum) RemoveManifest(name string, dgst digest.Digest, tags []string) e
 	}
 	dcontext.GetLogger(v.ctx).Infof("deleting manifest: %s", manifestPath)
 	return v.driver.Delete(v.ctx, manifestPath)
+}
+
+func (v Vacuum) RemoveTags(name string, tags []string) error {
+	for _, tag := range tags {
+		tagPath, err := pathFor(manifestTagPathSpec{name: name, tag: tag})
+		if err != nil {
+			return err
+		}
+		_, err = v.driver.Stat(v.ctx, tagPath)
+		if err != nil {
+			dcontext.GetLogger(v.ctx).Infof("get tag %s stats failed", tagPath)
+			continue
+		}
+		dcontext.GetLogger(v.ctx).Infof("deleting tag reference: %s", tagPath)
+		err = v.driver.Delete(v.ctx, tagPath)
+		if err != nil {
+			dcontext.GetLogger(v.ctx).Infof("delete tag %s failed", tagPath)
+			continue
+		}
+	}
+	return nil
 }
 
 // RemoveRepository removes a repository directory from the
