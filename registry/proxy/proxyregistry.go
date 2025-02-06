@@ -122,15 +122,26 @@ func (pr *proxyingRegistry) Repositories(ctx context.Context, repos []string, la
 	return pr.embedded.Repositories(ctx, repos, last)
 }
 
+type tokenHandler struct {
+	token string
+}
+
+func (th *tokenHandler) Scheme() string {
+	return "bearer"
+}
+
+func (th *tokenHandler) AuthorizeRequest(req *http.Request, _ map[string]string) error {
+	req.Header.Set("Authorization", th.token)
+	return nil
+}
+
 func (pr *proxyingRegistry) Repository(ctx context.Context, name reference.Named) (distribution.Repository, error) {
 	req, err := dcontext.GetRequest(ctx)
 	if err != nil {
 		return nil, err
 	}
-	header := http.Header{}
-	header.Set("Authorization", req.Header.Get("Authorization"))
-	tr := transport.NewTransport(http.DefaultTransport, transport.NewHeaderRequestModifier(header))
 
+	tr := transport.NewTransport(http.DefaultTransport, auth.NewAuthorizer(pr.authChallenger.challengeManager(), &tokenHandler{token: req.Header.Get("Authorization")}))
 	localRepo, err := pr.embedded.Repository(ctx, name)
 	if err != nil {
 		return nil, err
