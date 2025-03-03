@@ -77,6 +77,8 @@ const (
 	defaultTosPrivateDomainSuffix = "ivolces.com"
 	// defaultTosPublicDomainSuffix defines the default tos public domain suffix
 	defaultTosPublicDomainSuffix = "volces.com"
+
+	defaultUploadPartConcurrency = 20
 )
 
 // listMax is the largest amount of objects you can request from S3 in a list call
@@ -112,6 +114,7 @@ type DriverParameters struct {
 	MultipartCopyChunkSize      int64
 	MultipartCopyMaxConcurrency int64
 	MultipartCopyThresholdSize  int64
+	UploadPartConcurrency       int64
 	RootDirectory               string
 	StorageClass                string
 	UserAgent                   string
@@ -164,6 +167,9 @@ type driver struct {
 	StorageClass                string
 	ObjectACL                   string
 	pool                        *sync.Pool
+
+	flushTokens    chan struct{}
+	maxConcurrency int64
 }
 
 type baseEmbed struct {
@@ -311,6 +317,11 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		return nil, err
 	}
 
+	uploadPartConcurrency, err := getParameterAsInt64(parameters, "uploadpartconcurrency", defaultUploadPartConcurrency, 0, math.MaxInt64)
+	if err != nil {
+		uploadPartConcurrency = defaultUploadPartConcurrency
+	}
+
 	rootDirectory := parameters["rootdirectory"]
 	if rootDirectory == nil {
 		rootDirectory = ""
@@ -371,6 +382,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		multipartCopyChunkSize,
 		multipartCopyMaxConcurrency,
 		multipartCopyThresholdSize,
+		uploadPartConcurrency,
 		fmt.Sprint(rootDirectory),
 		storageClass,
 		fmt.Sprint(userAgent),
@@ -508,7 +520,12 @@ func New(params DriverParameters) (*Driver, error) {
 				}
 			},
 		},
+		flushTokens: make(chan struct{}, params.UploadPartConcurrency),
 	}
+	for i := 0; i < int(params.UploadPartConcurrency); i++ {
+		d.flushTokens <- struct{}{}
+	}
+	fmt.Println("UploadPartConcurrency", params.UploadPartConcurrency)
 
 	return &Driver{
 		baseEmbed: baseEmbed{
@@ -1281,6 +1298,11 @@ type writer struct {
 	closed    bool
 	committed bool
 	cancelled bool
+
+	mu         sync.Mutex
+	inflight   sync.WaitGroup // 跟踪正在进行的异步 flush
+	flushErr   chan error     // 记录异步错误
+	partNumber int64
 }
 
 func (d *driver) newWriter(key, uploadID string, parts []*s3.Part) storagedriver.FileWriter {
@@ -1289,13 +1311,15 @@ func (d *driver) newWriter(key, uploadID string, parts []*s3.Part) storagedriver
 		size += *part.Size
 	}
 	return &writer{
-		driver:   d,
-		key:      key,
-		uploadID: uploadID,
-		parts:    parts,
-		size:     size,
-		ready:    d.NewBuffer(),
-		pending:  d.NewBuffer(),
+		driver:     d,
+		key:        key,
+		uploadID:   uploadID,
+		parts:      parts,
+		size:       size,
+		ready:      d.NewBuffer(),
+		pending:    d.NewBuffer(),
+		flushErr:   make(chan error),
+		partNumber: int64(len(parts)),
 	}
 }
 
@@ -1377,6 +1401,7 @@ func (w *writer) Write(p []byte) (int, error) {
 				return 0, io.ErrShortBuffer
 			}
 		} else {
+			w.partNumber = 1
 			// Otherwise we can use the old file as the new first part
 			copyPartResp, err := w.driver.S3.UploadPartCopy(&s3.UploadPartCopyInput{
 				Bucket:     aws.String(w.driver.Bucket),
@@ -1428,8 +1453,52 @@ func (w *writer) Write(p []byte) (int, error) {
 
 		// we filled up pending buffer, flush
 		if w.pending.Len() == w.pending.Cap() {
-			if err := w.flush(); err != nil {
-				return n, err
+			readyData := make([]byte, len(w.ready.data))
+			copy(readyData, w.ready.data)
+			buf := bytes.NewBuffer(readyData)
+			if w.pending.Len() > 0 && w.pending.Len() < int(w.driver.ChunkSize) {
+				pendingData := make([]byte, len(w.pending.data))
+				copy(pendingData, w.pending.data)
+				if _, err := buf.Write(pendingData); err != nil {
+					return 0, err
+				}
+				w.pending.Clear()
+			}
+			partSize := buf.Len()
+			partNumber := w.partNumber + 1
+			w.partNumber++
+			// reset the flushed buffer and swap buffers
+			w.ready.Clear()
+			w.ready, w.pending = w.pending, w.ready
+			select {
+			case err := <-w.flushErr:
+				return 0, err
+			case token := <-w.driver.flushTokens: // 尝试获取令牌
+				// 异步上传
+				w.inflight.Add(1)
+				go func(t struct{}) {
+					defer func() {
+						w.driver.flushTokens <- t // 归还令牌
+						w.inflight.Done()
+					}()
+					part, err := w.asyncFlush(buf.Bytes(), partSize, partNumber)
+					if err != nil {
+						w.flushErr <- err
+						return
+					}
+					w.mu.Lock()
+					defer w.mu.Unlock()
+					w.parts = setAtIndex(w.parts, partNumber-1, part)
+				}(token)
+			default:
+				// 无可用令牌，同步上传
+				part, err := w.asyncFlush(buf.Bytes(), partSize, partNumber)
+				if err != nil {
+					return 0, err
+				}
+				w.mu.Lock()
+				w.parts = setAtIndex(w.parts, partNumber-1, part)
+				w.mu.Unlock()
 			}
 		}
 	}
@@ -1452,6 +1521,7 @@ func (w *writer) Close() error {
 		w.pending.Clear()
 		w.driver.pool.Put(w.pending)
 	}()
+	w.inflight.Wait()
 
 	return w.flush()
 }
@@ -1577,10 +1647,40 @@ func (w *writer) flush() error {
 		PartNumber: partNumber,
 		Size:       aws.Int64(int64(partSize)),
 	})
+	w.partNumber++
 
 	// reset the flushed buffer and swap buffers
 	w.ready.Clear()
 	w.ready, w.pending = w.pending, w.ready
 
 	return nil
+}
+
+func (w *writer) asyncFlush(data []byte, partSize int, partNumber int64) (*s3.Part, error) {
+	resp, err := w.driver.S3.UploadPart(&s3.UploadPartInput{
+		Bucket:     aws.String(w.driver.Bucket),
+		Key:        aws.String(w.key),
+		PartNumber: aws.Int64(partNumber),
+		UploadId:   aws.String(w.uploadID),
+		Body:       bytes.NewReader(data),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &s3.Part{
+		ETag:       resp.ETag,
+		PartNumber: aws.Int64(partNumber),
+		Size:       aws.Int64(int64(partSize)),
+	}, nil
+}
+
+func setAtIndex(parts []*s3.Part, index int64, part *s3.Part) []*s3.Part {
+	if int(index) < len(parts) {
+		parts[index] = part
+		return parts
+	}
+	required := int(index) + 1 - len(parts)
+	parts = append(parts, make([]*s3.Part, required)...)
+	parts[index] = part
+	return parts
 }
