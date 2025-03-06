@@ -1550,33 +1550,33 @@ func (w *writer) flush() error {
 		return nil
 	}
 
-	buf := bytes.NewBuffer(w.ready.data)
-	if w.pending.Len() > 0 && w.pending.Len() < int(w.driver.ChunkSize) {
-		if _, err := buf.Write(w.pending.data); err != nil {
-			return err
-		}
-		w.pending.Clear()
-	}
-
-	partSize := buf.Len()
-	partNumber := aws.Int64(int64(len(w.parts) + 1))
-
-	resp, err := w.driver.S3.UploadPart(&s3.UploadPartInput{
-		Bucket:     aws.String(w.driver.Bucket),
-		Key:        aws.String(w.key),
-		PartNumber: partNumber,
-		UploadId:   aws.String(w.uploadID),
-		Body:       bytes.NewReader(buf.Bytes()),
-	})
-	if err != nil {
-		return err
-	}
-
-	w.parts = append(w.parts, &s3.Part{
-		ETag:       resp.ETag,
-		PartNumber: partNumber,
-		Size:       aws.Int64(int64(partSize)),
-	})
+	//buf := bytes.NewBuffer(w.ready.data)
+	//if w.pending.Len() > 0 && w.pending.Len() < int(w.driver.ChunkSize) {
+	//	if _, err := buf.Write(w.pending.data); err != nil {
+	//		return err
+	//	}
+	//	w.pending.Clear()
+	//}
+	//
+	//partSize := buf.Len()
+	//partNumber := aws.Int64(int64(len(w.parts) + 1))
+	//
+	//resp, err := w.driver.S3.UploadPart(&s3.UploadPartInput{
+	//	Bucket:     aws.String(w.driver.Bucket),
+	//	Key:        aws.String(w.key),
+	//	PartNumber: partNumber,
+	//	UploadId:   aws.String(w.uploadID),
+	//	Body:       bytes.NewReader(buf.Bytes()),
+	//})
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//w.parts = append(w.parts, &s3.Part{
+	//	ETag:       resp.ETag,
+	//	PartNumber: partNumber,
+	//	Size:       aws.Int64(int64(partSize)),
+	//})
 
 	// reset the flushed buffer and swap buffers
 	w.ready.Clear()
